@@ -78,3 +78,4 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
 
     Please refer to the :class:`omni.isaac.lab.managers.CommandManager` class for more details.
     """
+

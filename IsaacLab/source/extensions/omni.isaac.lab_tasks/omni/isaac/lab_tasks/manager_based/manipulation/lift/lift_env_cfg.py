@@ -94,9 +94,30 @@ class ActionsCfg:
     arm_action: mdp.JointPositionActionCfg | mdp.DifferentialInverseKinematicsActionCfg = MISSING
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
-
 @configclass
 class ObservationsCfg:
+    """Observation specifications for the MDP."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
+        target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        actions = ObsTerm(func=mdp.last_action)
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = True
+
+    # observation groups
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
+class CameraObservationsCfg:
     """Observation specifications for the MDP."""
 
     @configclass
@@ -182,16 +203,47 @@ class CurriculumCfg:
 # Environment configuration
 ##
 
-
 @configclass
 class LiftEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the lifting environment."""
 
-    task_description: str = "lift the cube"
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=128, env_spacing=2.5)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
+    actions: ActionsCfg = ActionsCfg()
+    commands: CommandsCfg = CommandsCfg()
+    # MDP settings
+    rewards: RewardsCfg = RewardsCfg()
+    terminations: TerminationsCfg = TerminationsCfg()
+    events: EventCfg = EventCfg()
+    curriculum: CurriculumCfg = CurriculumCfg()
+
+    def __post_init__(self):
+        """Post initialization."""
+        # general settings
+        self.decimation = 2
+        self.episode_length_s = 5.0
+        # simulation settings
+        self.sim.dt = 0.01  # 100Hz
+        self.sim.render_interval = self.decimation
+
+        self.sim.physx.bounce_threshold_velocity = 0.2
+        self.sim.physx.bounce_threshold_velocity = 0.01
+        self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4
+        self.sim.physx.gpu_total_aggregate_pairs_capacity = 16 * 1024
+        self.sim.physx.friction_correlation_distance = 0.00625
+
+@configclass
+class LiftCameraEnvCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the lifting environment."""
+
+    task_description: str = "lift the cube"
+    task_dir: str = "./vlm_query/lift_cube"
+    # Scene settings
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4, env_spacing=2.5)
+    # Basic settings
+    observations: ObservationsCfg = CameraObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     commands: CommandsCfg = CommandsCfg()
     # MDP settings
@@ -203,7 +255,10 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
         offset=TiledCameraCfg.OffsetCfg(pos=(0.5, 0.0, 1.), rot=(0.707, 0.0, 0.707, 0.), convention="world"),
-        data_types=["rgb"],
+        data_types=["rgb", "depth", "instance_id_segmentation_fast", "instance_segmentation_fast", "semantic_segmentation", "distance_to_image_plane"],
+        colorize_instance_id_segmentation=False,
+        colorize_instance_segmentation=False,
+        colorize_semantic_segmentation=False,
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),

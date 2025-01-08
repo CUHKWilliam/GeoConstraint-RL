@@ -1,0 +1,16 @@
+def stage_2_path_constraint1():
+    """constraints: <"path constraints", "the center of the body of the cube", "the center of the body of the cube", "the center of the body of the cube remains directly above its initial position">"""
+    pc1 = get_point_cloud("the body of the cube", -2)  # Previous position
+    pc2 = get_point_cloud("the body of the cube", -1)  # Current position
+
+    # Compute the center of the cube at the previous and current timestamps
+    center_previous = np.mean(pc1, axis=0)
+    center_current = np.mean(pc2, axis=0)
+
+    # Calculate the horizontal displacement (x, y coordinates)
+    horizontal_displacement = np.linalg.norm(center_current[:2] - center_previous[:2])
+
+    # The cube should remain directly above its initial position
+    cost = horizontal_displacement
+    return cost
+

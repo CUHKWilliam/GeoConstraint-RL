@@ -1,0 +1,69 @@
+### Task Decomposition
+The task "lift the cube" involves the following stages:
+1. Grasp the cube.
+2. Lift the cube to a specified height.
+
+### Number of Stages
+`num_stages = 2`
+
+---
+
+### <Stage Constraints Splitter> ###
+### Stage 1 Sub-Goal Constraints (Grasping)
+```python
+def stage_1_subgoal_constraint1():
+    """constraints: <"grasp", "the body of the cube">"""
+    return grasp("the body of the cube")
+```
+
+---
+
+### <Stage Constraints Splitter> ###
+### Stage 2 Sub-Goal Constraints (Lifting)
+```python
+def stage_2_subgoal_constraint1():
+    """constraints: <"sub-goal constraints", "the center of the body of the cube", "the center of the body of the cube", "the center of the body of the cube moves upwards by 20 centimeters">"""
+    pc1 = get_point_cloud("the body of the cube", -2)  # Previous position
+    pc2 = get_point_cloud("the body of the cube", -1)  # Current position
+
+    # Compute the center of the cube at the previous and current timestamps
+    center_previous = np.mean(pc1, axis=0)
+    center_current = np.mean(pc2, axis=0)
+
+    # Calculate the vertical displacement (z-axis)
+    vertical_displacement = center_current[2] - center_previous[2]
+
+    # Target displacement is 0.2 meters (20 cm)
+    cost = abs(vertical_displacement - 0.2)
+    return cost
+```
+
+---
+
+### Stage 2 Path Constraints (Lifting)
+```python
+def stage_2_path_constraint1():
+    """constraints: <"path constraints", "the center of the body of the cube", "the center of the body of the cube", "the center of the body of the cube remains directly above its initial position">"""
+    pc1 = get_point_cloud("the body of the cube", -2)  # Previous position
+    pc2 = get_point_cloud("the body of the cube", -1)  # Current position
+
+    # Compute the center of the cube at the previous and current timestamps
+    center_previous = np.mean(pc1, axis=0)
+    center_current = np.mean(pc2, axis=0)
+
+    # Calculate the horizontal displacement (x, y coordinates)
+    horizontal_displacement = np.linalg.norm(center_current[:2] - center_previous[:2])
+
+    # The cube should remain directly above its initial position
+    cost = horizontal_displacement
+    return cost
+```
+
+---
+
+### Object to Segment
+```python
+object_to_segment = [
+    "the body of the cube"
+]
+```

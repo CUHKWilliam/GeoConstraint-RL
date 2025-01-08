@@ -1,0 +1,16 @@
+## mask_indice: 1
+def segment_object(mask):
+    """
+    Process the input segmentation mask to find the body of the cube.
+
+    Parameters:
+        mask (np.ndarray): Boolean numpy array of a segmentation mask in shape (H, W).
+
+    Returns:
+        np.ndarray: Processed mask representing the body of the cube in shape (H, W).
+    """
+    # Convert the boolean mask to uint8 format
+    mask_output = (mask * 255).astype(np.uint8)
+    
+    # Return the processed mask
+    return mask_output

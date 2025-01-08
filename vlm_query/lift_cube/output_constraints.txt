@@ -1,0 +1,33 @@
+### Task Decomposition and Flow Control
+
+The task "lift the cube" involves **3 stages**:
+1. Grasp the cube.
+2. Lift the cube.
+3. Release the cube.
+
+---
+
+### Stage 1: Grasp the cube
+- **Sub-goal constraints**:
+  - <"grasp", "the body of the cube">
+  - <"sub-goal constraints", "the heading direction of the gripper approach of the robot", "the plane of the surface of the table", "the heading direction of the gripper approach of the robot is parallel to the normal of the surface of the table">
+  - <"sub-goal constraints", "the heading direction of the gripper binormal of the robot", "the edges of the body of the cube", "the heading direction of the gripper binormal of the robot is perpendicular to the edges of the body of the cube">
+
+---
+
+### Stage 2: Lift the cube
+- **Sub-goal constraints**:
+  - <"sub-goal constraints", "the center of the body of the cube", "the surface of the table", "the center of the body of the cube is above the surface of the table by 20 centimeters">
+- **Path constraints**:
+  - <"path constraints", "the center of the body of the cube", "the surface of the table", "the center of the body of the cube remains above the surface of the table during the lifting motion">
+
+---
+
+### Stage 3: Release the cube
+- **Sub-goal constraints**:
+  - <"release">
+
+---
+
+### Number of Stages
+**3 stages**

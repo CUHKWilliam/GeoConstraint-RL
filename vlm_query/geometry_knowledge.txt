@@ -1,0 +1,252 @@
+Here are some geometry-related and control-flow-related knowledge:
+THE EXAMPLES ARE ONLY FOR YOUR REFERENCE. YOU NEED TO ADAPT TO THE CODE FLEXIBLY AND CREATIVELY ACCORDING TO DIFFERENT SCENARIOS !!!!!
+
+# Chapter 1: normal, axis, heading direction, binormal:
+- Notice: The largest axis component of the normal / axis / heading direction should always be positive !
+- To find the heading direction is the same of finding the axis
+- Example:
+    """
+    Finds the normal (normal vector) of a plate given its point cloud.
+
+    Args:
+        pc: numpy array of shape (N, 3), point cloud of the plate.
+
+    Returns:
+        plate_normal: A normalized vector representing the normal vector of the plate.
+    """
+    # Compute the covariance matrix of the point cloud
+    covariance_matrix = np.cov(pc.T)
+    
+    # Perform eigen decomposition to get eigenvalues and eigenvectors
+    eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)
+    
+    # The eigenvector corresponding to the smallest eigenvalue is the normal vector to the plate's surface
+    plate_normal = eigenvectors[:, np.argmin(eigenvalues)]
+    if plate_normal[np.argmax(plate_normal)] > 0:
+        plate_normal = -plate_normal
+
+    # Normalize the normal vector
+    plate_normal = plate_normal / np.linalg.norm(plate_normal, axis=-1)
+    
+    return plate_normal
+
+- Next example:
+    """
+    Finds the axis of a cylinder given its point cloud.
+
+    Args:
+        pc: numpy array of shape (N, 3), point cloud of the cylinder.
+
+    Returns:
+        cylinder_axis: A normalized vector representing the axis of the cylinder.
+    """
+    # Compute the covariance matrix of the point cloud
+    covariance_matrix = np.cov(pc.T)
+    
+    # Perform eigen decomposition to get eigenvalues and eigenvectors
+    eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)
+    
+    # The eigenvector corresponding to the largest eigenvalue represents the axis of the cylinder
+    cylinder_axis = eigenvectors[:, np.argmax(eigenvalues)]
+    if cylinder_axis[np.argmax(cylinder_axis)] < 0:
+        cylinder_axis = -cylinder_axis
+    
+    # Normalize the axis vector
+    cylinder_axis = cylinder_axis / np.linalg.norm(cylinder_axis, axis=-1)
+    
+    return cylinder_axis
+- To find out the heading direction of long-shaped object, find the max PCA component.
+- To find out the normal of a surface, find the min PCA component.
+- To find out the axis of an object, there are two cases. 
+    - For long-shaped object like bolt, carrot, etc., its the max PCA component
+    - For fat-shaped object like bowl, nut, etc., its the min PCA component
+
+- A axis / heading direction / normal that is perpendicular to a plane / surface is parallel to the normal. 
+- A binormal is the vector that is both perpendicular to the axis / heading direction and the normal 
+- parallel: cost = (1 - np.abs(dot_product)) * 5
+
+# Chapter 2: relative position between two points
+- Example 1:
+    """
+    Measures the cost that point 2 is directly below point 1.
+    
+    Args:
+        pc1: numpy array of shape (N, 3), point cloud of point 1.
+        pc2: numpy array of shape (M, 3), point cloud of point 2.
+
+    Returns:
+        cost: a non-negative float representing the extent to which point 2 is directly below point 1.
+              The lower the cost, the more point 2 is directly below point 1.
+    """
+    # Compute the center of mass (mean position) for point 1 and point 2
+    point1_center = np.mean(pc1, axis=0)
+    point2_center = np.mean(pc2, axis=0)
+    
+    # Calculate the horizontal distance (x, y coordinates) between the centers
+    horizontal_distance = np.linalg.norm(point1_center[:2] - point2_center[:2])
+    
+    # Calculate the vertical distance (z coordinate) between the centers
+    vertical_distance = point1_center[2] - point2_center[2]
+    
+    # If point 2 is not below point 1, add a large penalty to the cost
+    if vertical_distance < 0:
+        cost = abs(vertical_distance) + horizontal_distance + 1000  # Large penalty for incorrect vertical position
+    else:
+        cost = horizontal_distance
+    
+    return cost
+
+- Next example:
+    """
+    Measures the cost that point 2 is directly to the left of point 1 by 10 cm.
+    
+    Args:
+        pc1: numpy array of shape (N, 3), point cloud of point 1.
+        pc2: numpy array of shape (M, 3), point cloud of point 2.
+
+    Returns:
+        cost: a non-negative float representing the extent to which point 2 is directly to the left of point 1 by 10 cm.
+              The lower the cost, the closer point 2 is to being exactly 10 cm to the left of point 1.
+    """
+    # Compute the center of mass (mean position) for point 1 and point 2
+    point1_center = np.mean(pc1, axis=0)
+    point2_center = np.mean(pc2, axis=0)
+    
+    # Calculate the horizontal distance (x-axis) between point 1 and point 2
+    x_distance = point2_center[0] - point1_center[0]
+    
+    # Calculate the y and z distances (vertical and depth positions)
+    y_distance = abs(point2_center[1] - point1_center[1])
+    z_distance = abs(point2_center[2] - point1_center[2])
+    
+    # The ideal x distance should be -0.10 meters (to the left by 10 cm)
+    cost = abs(x_distance + 0.10) + y_distance + z_distance  # Sum all deviations from ideal positioning
+    
+    return cost
+
+# Chapter 3: control flow
+We use flow constraints for control flow, which specify transitions among different stages.
+- Repetition control flow: Do <something> until some <condition>
+- For example:
+<"flow constraint", "Repeat this stage until the box reaches the table edge">
+def stage_`i`_flow_constraint1():
+  while True:
+    # query GPT-4O
+    query = "Is the box on the table edge? You only need to answer 'yes' or 'no'"
+    answer = query_GPT(query)
+    if answer.strip().lower() == "yes"
+      return `i+1` # go to next stage 
+    else:
+      return `i` # repeat this stage to continue pushing the box
+## Repeat until the cup is being filled, then go to stage 3
+## <"flow constraints", "the cup is filled with water">
+def stage_i_flow_constraint1():
+  while True:
+    # query GPT-4O
+    query = "Is the water filled in the cup? You only need to answer 'yes' or 'no'"
+    answer = query_GPT(query)
+    if answer.strip().lower() == "yes"
+      return `i+1`
+    else:
+      return `i`
+
+## Repeat the stage N times
+## <"flow constraints", "repeat this stage N times">
+def stage_i_flow_constraint1():
+  # CNT is a global counter variable with default value 0, don't initialize it again!
+  if CNT < N:
+    CNT += 1
+    return `i`
+  CNT = 0
+  return `i+1`
+- You can have multiple flow constraint if necessary. They can create complex flow control. Just think about what you do to write flow control in Python code.
+For a example:
+## <"flow constraints", "repeat this stage N times">
+## <"flow constraints", "condition">
+This is example of loop in a loop. The inner loop repeat the stage N times. The outer loop repeat the inner loop until condition is satisfied.
+Another example:
+## <"flow constraints", "repeat this stage N times">
+## <"flow constraints", "condition">
+
+# Chapter 4: rotation and orbiting
+- To rotate, we use sub-goal constraint to first constraints its rotated position
+## rotate pc around axis by angle_degrees
+def stage_?_subgoal_constraint1():
+    pc_previous = get_point_cloud("pc", -2)
+    pc = get_point_cloud("pc", -1)
+    object = get_point_cloud("object", -2) # use -2 to specify the previous object
+    covariance_matrix = np.cov(object.T)
+    eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)
+    axis = eigenvectors[:, np.argmax(eigenvalues)]
+    axis = axis / np.linalg.norm(axis, axis=-1)  # Normalize the axis vector
+
+    # Step 3: Convert the angle from degrees to radians
+    angle_radians = np.radians(angle_degrees)
+
+    # Step 4: Compute the rotation matrix using Rodrigues' rotation formula
+    K = np.array([[0, -axis[2], axis[1]],
+                  [axis[2], 0, -axis[0]],
+                  [-axis[1], axis[0], 0]])  
+    I = np.eye(3)  # Identity matrix
+    rotation_matrix = I + np.sin(angle_radians) * K + (1 - np.cos(angle_radians)) * np.dot(K, K)
+
+    # Step 5: Rotate each point in pc1 around object's center
+    rotated_pc = np.dot(pc_previous - object.mean(0), rotation_matrix.T) + object.mean(0)
+
+    cost = np.linalg.norm(rotated_pc - pc, axis=-1).sum()
+    return cost
+
+- To orbit: The orientation of pc is unchanged during orbiting. To calculate the position after orbital translation, we first calculate the position of the center of pc rotating around the axis of the object. Next, we translate the whole pc to the rotated center.
+def stage_?_subgoal_constraint1():
+    pc_previous = get_point_cloud("pc", -2)
+    pc = get_point_cloud("pc", -1)
+    object = get_point_cloud("object", -2) # use -2 to specify the previous object
+    covariance_matrix = np.cov(object.T)
+    eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)
+    axis = eigenvectors[:, np.argmax(eigenvalues)]
+    axis = axis / np.linalg.norm(axis, axis=-1)  # Normalize the axis vector
+    # Step 3: Convert the angle from degrees to radians
+    # Step 4: Compute the rotation matrix using Rodrigues' rotation formula
+    # Step 5: Rotate each point in pc1 around object's center
+    orbital_pc_center = np.dot(pc_previous.mean(0) - object.mean(0), rotation_matrix.T) + object.mean(0)
+    orbital_pc = orbital_pc - pc_previous.mean(0) + orbital_pc_center
+    cost = np.linalg.norm(rotated_pc - pc, axis=-1).sum()
+    return cost
+
+- For both rotation and orbiting, if the distance is not specified, we need a path constraint to specify the distance between pc center and the object center remain unchanged (same as the distance of pc_previous center and the object center)
+def stage_?_path_constraint1():
+     pc_previous = get_point_cloud("pc", -2)
+    pc = get_point_cloud("pc", -1)
+    object = get_point_cloud("object", -2) # use -2 to specify the previous object
+    distance_previous = np.linalg.norm(pc_previous.mean(0) - object.mean(0))
+    distance = np.linalg.norm(pc.mean(0) - object.mean(0))
+    cost = abs(distance_previous - distance)
+    return cost
+- If certain distance `x` is specified, we need path constraint to remain the specified distance:
+def stage_?_path_constraint1():
+    # get pc, and object
+    distance = np.linalg.norm(pc.mean(0) - object.mean(0))
+    cost = abs(distance - x)
+    return cost
+- To turn something, rotate all its points around its axis by some angle.
+- To orbit in circle, using flow control to repeat this stage 12 times: <"flow constraints", "repeat this stage 12 times">. For sub-goal constraint, orbit by 30 angle_degrees.
+- To rotate / orbit clockwisely, the angle is negative; Otherwise, the angle is positive.
+
+
+# Chapter 4: Relationship between points and vector
+- Colinear: point B colinear with object A's axis / normal / heading direction by distance x if:
+    point B = point A's center + normalize(point A's axis / normal / heading direction) * x
+- move towards / backwards / against / away:
+    - We need to calculate the target point first and calculate the distance between previous point and the target point as the cost
+    - points A move towards / to points B by distance:
+        previous point A = get_point_cloud(A, -2)
+        current point A = get_point_cloud(A, -1)
+        moving direction = normalized(vector of previous point A to B)
+        target position of point A = points A  + moving direction * distance
+        cost = np.linalg.norm(target position of point A - current position of point A) ## the cost is calculated based on the distance between target point and current point !!
+    - points A move backward / against / away from points B by distance:
+        previous point A = get_point_cloud(A, -2)
+        current point A = get_point_cloud(A, -1)
+        moving direction = normalized(vector of previous point A to B)
+        target position of point A = points A + moving direction * distance
+        cost = np.linalg.norm(target position of point A - current position of point A) ## the cost is calculated based on the distance between target point and current point !!

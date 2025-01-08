@@ -66,5 +66,4 @@ def object_goal_distance(
     # distance of the end-effector to the object: (num_envs,)
     distance = torch.norm(des_pos_w - object.data.root_link_pos_w[:, :3], dim=1)
     # rewarded if the object is lifted above the threshold
-    import ipdb;ipdb.set_trace()
     return (object.data.root_link_pos_w[:, 2] > minimal_height) * (1 - torch.tanh(distance / std))

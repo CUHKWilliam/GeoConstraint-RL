@@ -155,6 +155,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     )
     env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
 
+    # # Simulate physics
+    # import omni.isaac.lab.sim as sim_utils
+    # sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    # sim = sim_utils.SimulationContext(sim_cfg)
+    # while simulation_app.is_running():
+    #     # perform step
+    #     sim.step()
+
     # set number of actors into agent config
     agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
     # create runner from rl-games

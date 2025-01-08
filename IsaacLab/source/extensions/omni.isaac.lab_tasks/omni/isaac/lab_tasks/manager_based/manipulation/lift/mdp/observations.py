@@ -38,7 +38,7 @@ def get_rgb(
         object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
 ) -> torch.Tensor:
     rgbs = env.scene.sensors['tiled_camera'].data.output['rgb'] / 255.
-    # cv2.imwrite('debug.png', (rgbs[0] * 255).detach().cpu().numpy().astype(np.uint8)[:, :, ::-1])
+    cv2.imwrite('debug.png', (rgbs[0] * 255).detach().cpu().numpy().astype(np.uint8)[:, :, ::-1])
     # import ipdb;ipdb.set_trace()
     mean_tensor = torch.mean(rgbs, dim=(1, 2), keepdim=True)
     rgbs -= mean_tensor

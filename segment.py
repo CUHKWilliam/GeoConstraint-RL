@@ -5,10 +5,10 @@ import torch
 from torchvision.ops import box_convert
 import base64
 from openai import OpenAI
-from utils import exec_safe
+from utils_geoconst import exec_safe
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 import os
-from utils import *
+from utils_geoconst import *
 from skimage.measure import label as Label
 import cv2
 
@@ -76,18 +76,21 @@ class Segmentor:
         self.vlm_model = config['model'] if "model" in config.keys() else "chatgpt-4o-latest"
         self.vlm_model_role = "system" if "o1" not in self.vlm_model else "assistant"
         root_path = os.path.dirname(os.path.realpath(__file__))
-        sam = sam_model_registry["vit_h"](os.path.join(root_path, "sam_vit_h_4b8939.pth")).cuda()
+        sam = sam_model_registry["vit_h"](os.path.join(root_path, "../GroundingDINO/sam_vit_h_4b8939.pth")).cuda()
         self.mask_generator = SamAutomaticMaskGenerator(
             sam,
         )
 
         self.groundingdino_model = load_model(os.path.join(root_path, "../GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"), os.path.join(root_path, "../GroundingDINO/weights/groundingdino_swint_ogc.pth")).cuda()
 
-    def segment(self, obj_description, timestamp=-1, image_path=None, rekep_program_dir=None, seed=0,):
-        if image_path is None:
-            print("image path is None!")
+    def segment(self, obj_description, timestamp=-1, image_path=None, image=None, rekep_program_dir=None, seed=0,):
+        if image_path is None and image is None:
+            print("image path and image is None!")
             import ipdb;ipdb.set_trace()
-        image_source, image = load_image(image_path)
+        if image is None:
+            image_source, image = load_image(image_path)
+        else:
+            image_source = image.copy()
 
         ## this is for user provided gt mask 
         if rekep_program_dir is not None and os.path.exists(os.path.join(rekep_program_dir, "mask_{}_{}.png").format(obj_description, "gt")):
@@ -266,6 +269,8 @@ class Segmentor:
         cv2.imwrite(
             "debug2.png", (segm2 > 0).astype(np.uint8) * 255)
         return segm2
+
+
 
     def query_segment(self, segm_mask, part_description):
         if part_description.strip() == "":

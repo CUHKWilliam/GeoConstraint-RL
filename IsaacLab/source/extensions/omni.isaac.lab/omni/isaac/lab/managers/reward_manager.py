@@ -18,6 +18,16 @@ from .manager_term_cfg import RewardTermCfg
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedRLEnv
 
+from constraint_generation import ConstraintGenerator
+import os
+import json
+import copy
+from utils_geoconst import load_functions_from_txt
+import open3d as o3d
+import numpy as np
+import subprocess
+import transform_utils as T
+import utils_geoconst as utils
 
 class RewardManager(ManagerBase):
     """Manager for computing reward signals for a given world.
@@ -245,7 +255,213 @@ class RewardManager(ManagerBase):
                 self._class_term_cfgs.append(term_cfg)
 
 class GeoConstRewardManager(RewardManager):
-    def __init__(self, task_description: str, cfg: object, env: ManagerBasedRLEnv):
+    def __init__(self, task_dir: str, task_description: str, cfg: object, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self.task_description = task_description
-        import ipdb;ipdb.set_trace()
+        self.constraint_generator = ConstraintGenerator({"model": "chatgpt-4o-latest"})
+        img = env.scene.sensors['tiled_camera'].data.output['rgb'][0].detach().cpu().numpy()
+        self.constraint_generator.generate(img, self.task_description, rekep_program_dir=task_dir)
+        # load metadata
+        with open(os.path.join(task_dir, 'metadata.json'), 'r') as f:
+            self.program_info = json.load(f)
+        env.register_geometries(self.program_info['object_to_segment'], task_dir)
+        self.env = env
+        utils.ENV = env
+        self.constraint_fns = {}
+        functions_dict = {
+            "get_point_cloud": self.get_point_cloud_wrapper(),
+            "grasp": self.grasp_all_candidates_wrapper(),
+            "release": self.release_wrapper(),
+            "env": self,
+            "np": np,
+            "subprocess": subprocess,
+            "o3d": o3d,
+        }
+        for stage in range(1, self.program_info['num_stage'] + 1):  # stage starts with 1
+            stage_dict = dict()
+            load_path = os.path.join(task_dir, f'stage_{stage}_subgoal_constraints.txt')
+            if not os.path.exists(load_path):
+                func, _ = [], []
+            else:
+                ret = load_functions_from_txt(load_path, functions_dict, return_code=True) 
+                func, code = ret['func'], ret["code"]
+                if "grasp" in code:
+                    func[0] = self.grasp_cost_wrapper(func[0], func[1:])
+            self.constraint_fns[stage] = func
+        self.batch_idx = 0
+        ee_pos_b = self.env.get_ee_pos_b()
+        bs = ee_pos_b.shape[0]
+        self.stage_idx = np.array([1 for _ in range(bs)])
+
+    def get_point_cloud_wrapper(self,):
+        def get_point_cloud(part_name, ts):
+            return self.env.part_to_pts_dict[ts][part_name][self.batch_idx]
+        return get_point_cloud
+
+    def release_wrapper(self,):
+        def release():
+            self.release()
+        return release
+
+    def release(self,):
+        pass
+
+    def calculate_reward(self, cost, stage_idx):
+        reward = 1 / (cost + 1) + stage_idx * 2
+        return reward
+
+    def get_next_stage_idx(self, cost, current_stage_idx):
+        if cost < 0.05:
+            return current_stage_idx + 1
+        return current_stage_idx
+    
+    def grasp_cost_wrapper(self, grasp_func, constraint_fns):
+        name = grasp_func()
+        # grasp_poses = candidates['subgoal_poses']
+        # grasp_dict = select_grasp_with_constraints(grasp_poses, constraint_fns)
+        # grasp_pose, approach, binormal = grasp_dict["grasp_pose"], grasp_dict['approach'], grasp_dict['binormal']
+        get_point_cloud = self.get_point_cloud_wrapper()
+        def grasp_cost():
+            ee_pos = get_point_cloud("the gripper of the robot", -1)
+            grasp_center = get_point_cloud(name, -1).mean(0)
+            pos_cost = np.linalg.norm(ee_pos - grasp_center)
+            cost = pos_cost 
+            for constraint_fn in constraint_fns:
+                cost += constraint_fn()
+            # print("ee_pos:", ee_pos, "grasp_center:", grasp_center, "cost:", cost)
+            return cost
+        return grasp_cost
+
+    def grasp_all_candidates_wrapper(self,):
+        def grasp_all_candidates(name):
+            ## TODO: only use the center of the grasping part to supervise the ee pos
+            return name
+            batch_idx = self.batch_idx
+            env = self.env
+            if name == "":
+                return {
+                    "subgoal_poses": env.get_ee_pose()[None, ...],
+                }
+            get_point_cloud = self.get_point_cloud_wrapper()
+            segm_pts_3d = get_point_cloud(name, -1)
+            rgbs = env.last_cam_obs[1]['rgb']
+            pts_3d = env.last_cam_obs[1]['points']
+            pcd_debug = o3d.geometry.PointCloud()
+            pcd_debug.points = o3d.utility.Vector3dVector(pts_3d.reshape(-1, 3))
+            pcd_debug.colors = o3d.utility.Vector3dVector(rgbs.reshape(-1, 3) / 255.)
+            pcs_mean = segm_pts_3d.mean(0)
+            segm_pts_3d -= pcs_mean
+            pcd = o3d.geometry.PointCloud()
+            pcd.points = o3d.utility.Vector3dVector(segm_pts_3d)
+            pcd.colors = o3d.utility.Vector3dVector(np.ones((segm_pts_3d.shape[0], 3)))
+            o3d.io.write_point_cloud("tmp.pcd", pcd)
+            pcd.points = o3d.utility.Vector3dVector(segm_pts_3d + pcs_mean)
+            o3d.io.write_point_cloud("tmp.ply", pcd)
+            grasp_cfg_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../gpd/cfg/eigen_params.cfg")
+            grasp_bin_path = "detect_grasps"
+            output = subprocess.check_output(['{}'.format(grasp_bin_path), '{}'.format(grasp_cfg_path), "tmp.pcd"])
+            app_strs = str(output).split("Approach")[1:]
+            approaches = []
+            for app_str in app_strs:
+                app_str = app_str.strip().split(':')[1].strip()
+                app_vec =  app_str.split("\\n")
+                app_vec = np.array([float(app_vec[0]), float(app_vec[1]), float(app_vec[2])])
+                approaches.append(app_vec)
+            approaches = np.stack(approaches, axis=0)
+            pos_str = app_strs[-1]
+            pos_strs = pos_str.split("Position")[1:]
+            positions = []
+            for pos_str in pos_strs:
+                pos_str = pos_str.strip().split(':')[1].strip()
+                pos_vec =  pos_str.split("\\n")
+                pos_vec = np.array([float(pos_vec[0]), float(pos_vec[1]), float(pos_vec[2])])
+                positions.append(pos_vec)
+            positions = np.stack(positions, axis=0)
+
+            binormal_str = pos_strs[-1]
+            binormal_strs = binormal_str.split("Binormal")[1:]
+            binormals = []
+            for binormal_str in binormal_strs:
+                binormal_str = binormal_str.strip().split(':')[1].strip()
+                binormal_vec =  binormal_str.split("\\n")
+                binormal_vec = np.array([float(binormal_vec[0]), float(binormal_vec[1]), float(binormal_vec[2])])
+                binormals.append(binormal_vec)
+            binormals = np.stack(binormals, axis=0)
+
+            approach0 = env.APPROACH0.astype(np.float32)
+            approach0 /= np.linalg.norm(approach0)
+            binormal0 = env.BINORMAL0.astype(np.float32)
+            binormal0 /= np.linalg.norm(binormal0)
+
+            approaches = -approaches
+            starts = positions + pcs_mean + 0.03 * approaches
+            target_quats = []
+            transform_mats = []
+
+            pcd_debug = o3d.geometry.PointCloud()
+
+            for i in range(len(approaches)):
+                approach = approaches[i]
+                binormal = binormals[i]
+
+                source_points = np.stack([approach0, binormal0, np.array([0,0,0])], axis=0)
+                target_points = np.stack([approach, binormal, np.array([0,0,0])], axis=0)
+                transform_mat0 = np.identity(3)
+                transform_mat =  cv2.estimateAffine3D(source_points, target_points, force_rotation=True)[0][:3, :3]
+                transform_mats.append(transform_mat)
+                mat = transform_mat @ transform_mat0
+                target_quat = R.from_matrix(mat).as_quat()
+                target_quats.append(target_quat)
+
+            target_quats = np.stack(target_quats, axis=0)
+            target_positions = starts
+            subgoal_poses = np.concatenate([target_positions, target_quats], axis=-1)
+            return {
+                "subgoal_poses": subgoal_poses,
+                "pcd_debug": pcd_debug
+            }
+        return grasp_all_candidates
+
+
+    def compute(self, dt: float) -> torch.Tensor:
+        """Computes the reward signal as a weighted sum of individual terms.
+
+        This function calls each reward term managed by the class and adds them to compute the net
+        reward signal. It also updates the episodic sums corresponding to individual reward terms.
+
+        Args:
+            dt: The time-step interval of the environment.
+
+        Returns:
+            The net reward signal of shape (num_envs,).
+        """
+        # reset computation
+        part_to_pts_dict_last = copy.deepcopy(self.env.part_to_pts_dict)
+        self.env.update_part_to_pts_dict()
+        self._reward_buf[:] = 0.0
+        ee_pos_b = self.env.get_ee_pos_b()
+        bs = ee_pos_b.shape[0]
+        for idx in range(bs):
+            cost = 0
+            self.batch_idx = idx
+            stage_idx = self.stage_idx[idx]
+            constraint_fns = self.constraint_fns[stage_idx]
+            for constraint_fn in constraint_fns:
+                a_cost = constraint_fn()
+                cost += a_cost
+            cost /= max(len(constraint_fns), 1)
+            reward = self.calculate_reward(cost, stage_idx)
+            # self._reward_buf[idx] = reward * dt
+            self._reward_buf[idx] = -cost * 10
+            next_stage_idx = self.get_next_stage_idx(cost, stage_idx)
+            self.stage_idx[idx] = next_stage_idx
+        self.env.part_to_pts_dict = copy.deepcopy(part_to_pts_dict_last)
+        reward_buf = self._reward_buf
+        for name, term_cfg in zip(self._term_names, self._term_cfgs):
+            if name == "action_rate" or name == "joint_vel":
+                value = term_cfg.func(self.env, **term_cfg.params) * term_cfg.weight * dt
+                self._reward_buf += value
+                self._step_reward[:, self._term_names.index(name)] = value / dt
+            else:
+                self._step_reward[:, self._term_names.index(name)] = reward_buf / dt
+        return self._reward_buf
