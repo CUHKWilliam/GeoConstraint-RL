@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -105,7 +105,6 @@ class CartpoleCameraEnv(DirectRLEnv):
 
         self.joint_pos = self._cartpole.data.joint_pos
         self.joint_vel = self._cartpole.data.joint_vel
-
         if len(self.cfg.tiled_camera.data_types) != 1:
             raise ValueError(
                 "The Cartpole camera environment only supports one image type at a time but the following were"
@@ -120,6 +119,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         """Setup the scene with the cartpole and camera."""
         self._cartpole = Articulation(self.cfg.robot_cfg)
         self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
+
         # clone, filter, and replicate
         self.scene.clone_environments(copy_from_source=False)
         self.scene.filter_collisions(global_prim_paths=[])

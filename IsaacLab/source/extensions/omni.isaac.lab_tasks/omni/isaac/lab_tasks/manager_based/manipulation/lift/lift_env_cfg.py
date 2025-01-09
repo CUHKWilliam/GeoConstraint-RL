@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -21,7 +21,6 @@ from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
-
 from . import mdp
 
 ##
@@ -64,8 +63,6 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
 
-
-
 ##
 # MDP settings
 ##
@@ -94,6 +91,7 @@ class ActionsCfg:
     arm_action: mdp.JointPositionActionCfg | mdp.DifferentialInverseKinematicsActionCfg = MISSING
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
+
 @configclass
 class ObservationsCfg:
     """Observation specifications for the MDP."""
@@ -114,7 +112,6 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
-
 
 @configclass
 class CameraObservationsCfg:
@@ -139,6 +136,7 @@ class CameraObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
+
 @configclass
 class EventCfg:
     """Configuration for events."""
@@ -159,10 +157,21 @@ class EventCfg:
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
+
+    reaching_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.1}, weight=1.0)
+
+    lifting_object = RewTerm(func=mdp.object_is_lifted, params={"minimal_height": 0.04}, weight=15.0)
+
     object_goal_tracking = RewTerm(
         func=mdp.object_goal_distance,
         params={"std": 0.3, "minimal_height": 0.04, "command_name": "object_pose"},
         weight=16.0,
+    )
+
+    object_goal_tracking_fine_grained = RewTerm(
+        func=mdp.object_goal_distance,
+        params={"std": 0.05, "minimal_height": 0.04, "command_name": "object_pose"},
+        weight=5.0,
     )
 
     # action penalty
@@ -203,6 +212,7 @@ class CurriculumCfg:
 # Environment configuration
 ##
 
+
 @configclass
 class LiftEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the lifting environment."""
@@ -234,6 +244,7 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physx.gpu_total_aggregate_pairs_capacity = 16 * 1024
         self.sim.physx.friction_correlation_distance = 0.00625
 
+
 @configclass
 class LiftCameraEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the lifting environment."""
@@ -254,7 +265,7 @@ class LiftCameraEnvCfg(ManagerBasedRLEnvCfg):
     # camera
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.5, 0.0, 1.), rot=(0.707, 0.0, 0.707, 0.), convention="world"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(1.7, 0.0, 0.5), rot=(0.174, 0.0, 0.985, 0.0), convention="world"),
         data_types=["rgb", "depth", "instance_id_segmentation_fast", "instance_segmentation_fast", "semantic_segmentation", "distance_to_image_plane"],
         colorize_instance_id_segmentation=False,
         colorize_instance_segmentation=False,
@@ -262,8 +273,8 @@ class LiftCameraEnvCfg(ManagerBasedRLEnvCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
-        width=256,
-        height=256,
+        width=128,
+        height=128,
     )
 
 

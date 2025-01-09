@@ -255,4 +255,4 @@ print_help () {
 # run the python provided by isaacsim
 python_exe=$(extract_python_exe)
 echo "[INFO] Using python from: ${python_exe}"
-${python_exe} "IsaacLab/source/standalone/workflows/rl_games/train.py" --task=Isaac-Lift-Cube-Franka-v0 --headless    --enable_cameras
+${python_exe} "IsaacLab/source/standalone/workflows/rl_games/train.py" --task=Isaac-Lift-Cube-Franka-v0 --headless     --enable_cameras

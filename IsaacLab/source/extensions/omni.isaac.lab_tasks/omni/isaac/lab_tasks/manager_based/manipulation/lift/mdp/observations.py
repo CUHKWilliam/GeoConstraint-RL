@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 from omni.isaac.lab.assets import RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.utils.math import subtract_frame_transforms
-import numpy as np
 import cv2
+import numpy as np
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedRLEnv
@@ -38,8 +38,8 @@ def get_rgb(
         object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
 ) -> torch.Tensor:
     rgbs = env.scene.sensors['tiled_camera'].data.output['rgb'] / 255.
+    ## TODO:
     cv2.imwrite('debug.png', (rgbs[0] * 255).detach().cpu().numpy().astype(np.uint8)[:, :, ::-1])
-    # import ipdb;ipdb.set_trace()
     mean_tensor = torch.mean(rgbs, dim=(1, 2), keepdim=True)
     rgbs -= mean_tensor
     return rgbs

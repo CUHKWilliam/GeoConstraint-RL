@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,8 +6,6 @@
 from dataclasses import MISSING
 
 from omni.isaac.lab.utils.configclass import configclass
-from omni.isaac.lab.sensors import CameraCfg
-import omni.isaac.lab.sim as sim_utils
 
 
 @configclass
@@ -99,5 +97,3 @@ class InteractiveSceneCfg:
         Optimized parsing of certain prim types (such as deformable objects) is not currently supported
         by the physics engine. In these cases, this flag needs to be set to False.
     """
-
-    

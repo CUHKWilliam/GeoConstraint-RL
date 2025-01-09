@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,6 +14,7 @@ from . import agents
 ##
 # Joint Position Control
 ##
+
 gym.register(
     id="Isaac-Lift-Cube-Franka-v0",
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
@@ -28,12 +29,12 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Camera-Lift-Cube-Franka-v0",
-    entry_point="omni.isaac.lab.envs:ManagerCameraBasedRLEnv",
+    id="Isaac-GeoManip-Lift-Cube-Franka-v0",
+    entry_point="omni.isaac.lab.envs:GeoManipRLEnv",
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:FrankaCameraCubeLiftEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:FrankaCameraCubeLiftEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:LiftCubePPORunnerCfg",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_camera_games_ppo_cfg.yaml",
         "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
     },
@@ -41,13 +42,13 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Fold-Cloth-Franka-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    id="Isaac-Camera-Lift-Cube-Franka-v0",
+    entry_point="omni.isaac.lab.envs:ManagerCameraBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:FrankaClothFoldEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:FrankaCameraCubeLiftEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:LiftCubePPORunnerCfg",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_camera_ppo_cfg.yaml",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_camera_games_ppo_cfg.yaml",
         "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
     },
     disable_env_checker=True,
@@ -101,15 +102,3 @@ gym.register(
     },
     disable_env_checker=True,
 )
-
-gym.register(
-    id="Isaac-Fold-Cloth-Franka-IK-Rel-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:FrankaClothFoldEnvCfg",
-        "robomimic_bc_cfg_entry_point": os.path.join(agents.__path__[0], "robomimic/bc.json"),
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
-    },
-    disable_env_checker=True,
-)
-
